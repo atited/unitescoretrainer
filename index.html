@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pokémon Unite – Score Trainer</title>
+<style>
+  /* ==== BODY ==== */
+  body {
+    font-family: Arial, sans-serif;
+    background: #2c2360;
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+
+  /* ==== CARD ==== */
+  .card {
+    background: #3b3172;
+    padding: 25px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 540px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0,0,0,0.6);
+  }
+
+  /* ==== LOGO ==== */
+  img.logo {
+    width: 300px;
+    margin-bottom: 15px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    border-radius: 15px;
+    box-shadow: none;
+  }
+
+  /* ==== INPUT ==== */
+  input {
+    width: 60%; /* más pequeño */
+    padding: 8px;
+    font-size: 14px;
+    border: 2px solid #4ade80;
+    border-radius: 5px;
+    background: #2c2360;
+    color: #ffffff;
+    margin-top: 10px;
+  }
+  input::placeholder { color: #d1d5db; }
+
+  /* ==== BOTONES ==== */
+  .button-group {
+    margin-top: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 15px; /* separación entre botones */
+    flex-wrap: wrap;
+  }
+  button {
+    padding: 10px 18px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    color: #2c2360;
+    background-color: #facc15;
+    font-weight: bold;
+  }
+  button:hover { background-color: #eab308; }
+
+  /* ==== TIMER ==== */
+  .timer {
+    font-size: 20px;
+    margin-bottom: 10px;
+    color: #facc15;
+  }
+
+  /* ==== BARRA DE PROGRESO ==== */
+  .progress-container {
+    width: 100%;
+    background-color: #4b3e8c;
+    border-radius: 10px;
+    margin: 10px 0;
+  }
+  .progress-bar {
+    height: 15px;
+    background-color: #4ade80;
+    width: 0%;
+    border-radius: 10px;
+    transition: width 0.4s ease;
+  }
+
+  /* ==== IMAGEN DE LA PREGUNTA ==== */
+  img.question-img {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  /* ==== HISTORIAL DE INPUTS ==== */
+  .user-input-history {
+    margin-top: 15px;
+    font-size: 16px;
+    color: #facc15;
+    text-align: left;
+  }
+
+  /* ==== PAUSADO ==== */
+  .paused-notice {
+    color: #f87171;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+
+  /* ==== FOOTER LEGAL ==== */
+  .legal {
+    font-size: 10px;
+    color: #d1d5db;
+    margin-top: 15px;
+    text-align: center;
+  }
+
+  /* ==== LISTAS FAQ ==== */
+  ul {
+    line-height: 1.6;
+    text-align: left;
+    margin-left: 20px;
+  }
+  ul li { margin-bottom: 8px; }
+
+  /* ==== RESPONSIVE ==== */
+  @media (max-width: 500px){
+    input { width: 80%; }
+    .button-group { flex-direction: column; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="card" id="app"></div>
+
+<script>
+let currentQuestion = 0;
+const MAX_QUESTIONS = 4;
+let questions = [];
+let userResponses = [];
+let initialScore = Math.floor(Math.random() * 81);
+let timer;
+let timeLeft = 30;
+let isPaused = false;
+let lang = 'en'; // idioma por defecto
+
+const questionImage = "https://unite.pokemon.com/images/overview/mechanics/score.jpg";
+const logoImage = "https://i.ibb.co/JwCf5tTV/Chat-GPT-Image-6-ene-2026-06-38-28-p-m.png";
+
+// ==== TEXTOS MULTILINGÜES ====
+const TEXTS = {
+  en: { 
+    title: "Pokémon Unite – Score Trainer",
+    instructions: [
+      "• Play: Start the training.",
+      "• First question shows the initial team score.",
+      "• Each question: a player scores points in a base (Tier 1, Tier 2, Central).",
+      "• Mental Addition: Calculate the new total team score and type it.",
+      "• Submit: Save your answer.",
+      "• Your answers appear below as a list for learning purposes.",
+      "• Next: Move to the next question.",
+      "• Pause/Play: Stop or resume the timer.",
+      "• After 4 questions, see the final results with correct scores and errors."
+    ],
+    startBtn: "▶️ Start Training",
+    initialScore: "Initial team score",
+    questionText: "A player scores",
+    pointsIn: "points in",
+    howMany: "How many points does the team have now?",
+    submit: "Submit",
+    pause: "⏸️ Pause/Play",
+    pausedNotice: "⏸️ Paused - Cannot submit or advance",
+    next: "Next ➡️",
+    finalResults: "📊 Final Results",
+    realScore: "Real team score",
+    breakdown: "Question Breakdown",
+    correct: "✔️ Correct",
+    incorrectAbove: "❌ Incorrect, you were",
+    incorrectBelow: "❌ Incorrect, you were",
+    restart: "Restart",
+    accumulated: "Real accumulated score so far"
+  },
+  es: { 
+    title: "Pokémon Unite – Entrenador de Puntaje",
+    instructions: [
+      "• Jugar: Inicia el entrenamiento.",
+      "• La primera pregunta muestra el puntaje inicial del equipo.",
+      "• Cada pregunta: un jugador anota puntos en una base (Tier 1, Tier 2, Central).",
+      "• Suma mental: Calcula el nuevo puntaje total del equipo y escríbelo.",
+      "• Enviar: Guarda tu respuesta.",
+      "• Tus respuestas aparecen abajo como lista para aprender.",
+      "• Siguiente: Pasa a la siguiente pregunta.",
+      "• Pausa/Reanudar: Detén o reanuda el temporizador.",
+      "• Después de 4 preguntas, ve los resultados finales con los puntajes correctos y errores."
+    ],
+    startBtn: "▶️ Iniciar Entrenamiento",
+    initialScore: "Puntaje inicial del equipo",
+    questionText: "Un jugador anota",
+    pointsIn: "puntos en",
+    howMany: "¿Cuántos puntos tiene el equipo ahora?",
+    submit: "Enviar",
+    pause: "⏸️ Pausa/Reanudar",
+    pausedNotice: "⏸️ Pausado - No se puede enviar ni avanzar",
+    next: "Siguiente ➡️",
+    finalResults: "📊 Resultados Finales",
+    realScore: "Puntaje real del equipo",
+    breakdown: "Detalle de Preguntas",
+    correct: "✔️ Correcto",
+    incorrectAbove: "❌ Incorrecto, estabas",
+    incorrectBelow: "❌ Incorrecto, estabas",
+    restart: "Reiniciar",
+    accumulated: "Puntaje acumulado real hasta ahora"
+  },
+  pt: { 
+    title: "Pokémon Unite – Treinador de Pontos",
+    instructions: [
+      "• Jogar: Inicie o treinamento.",
+      "• A primeira pergunta mostra a pontuação inicial da equipe.",
+      "• Cada pergunta: um jogador marca pontos em uma base (Tier 1, Tier 2, Central).",
+      "• Adição mental: Calcule o novo total da equipe e digite.",
+      "• Enviar: Salve sua resposta.",
+      "• Suas respostas aparecem abaixo como lista para aprendizado.",
+      "• Próxima: Vá para a próxima pergunta.",
+      "• Pausar/Continuar: Pare ou retome o cronômetro.",
+      "• Após 4 perguntas, veja os resultados finais com pontuações corretas e erros."
+    ],
+    startBtn: "▶️ Iniciar Treinamento",
+    initialScore: "Pontuação inicial da equipe",
+    questionText: "Um jogador marca",
+    pointsIn: "pontos em",
+    howMany: "Quantos pontos a equipe tem agora?",
+    submit: "Enviar",
+    pause: "⏸️ Pausar/Continuar",
+    pausedNotice: "⏸️ Pausado - Não é possível enviar ou avançar",
+    next: "Próximo ➡️",
+    finalResults: "📊 Resultados Finais",
+    realScore: "Pontuação real da equipe",
+    breakdown: "Detalhes das Perguntas",
+    correct: "✔️ Correto",
+    incorrectAbove: "❌ Incorreto, você estava",
+    incorrectBelow: "❌ Incorreto, você estava",
+    restart: "Reiniciar",
+    accumulated: "Pontuação acumulada real até agora"
+  }
+};
+
+// ==== SELECCIÓN DE IDIOMA ====
+function showLanguageSelection() {
+  document.getElementById("app").innerHTML = `
+    <img src="${logoImage}" alt="Logo" class="logo">
+    <h2>Pokémon Unite – Score Trainer</h2>
+    <p>Select your language / Selecciona tu idioma / Selecione seu idioma:</p>
+    <div class="button-group">
+      <button onclick="setLanguage('en')">English</button>
+      <button onclick="setLanguage('es')">Español</button>
+      <button onclick="setLanguage('pt')">Português</button>
+    </div>
+  `;
+}
+
+function setLanguage(l) { lang = l; showStartScreen(); }
+
+// ==== START SCREEN ====
+function showStartScreen(){
+  const t = TEXTS[lang];
+  document.getElementById("app").innerHTML = `
+    <img src="${logoImage}" alt="Logo" class="logo">
+    <h2>${t.title}</h2>
+    <ul>${t.instructions.map(i => `<li>${i}</li>`).join("")}</ul>
+    <div class="button-group"><button onclick="startQuiz()">${t.startBtn}</button></div>
+    <div class="legal">
+      AtitedTools isn’t endorsed by Nintendo and doesn’t reflect the views or opinions of Nintendo or anyone officially involved in producing or managing Pokémon Unite. Pokémon Unite and Pokémon are trademarks or registered trademarks of Nintendo.
+    </div>
+  `;
+}
+
+// ==== GENERAR PREGUNTAS ====
+function generateQuestions() {
+  questions = [];
+  const baseTypes = ["Tier 1", "Tier 2", "Central"];
+  for (let i=0;i<MAX_QUESTIONS;i++){
+    let baseType = baseTypes[Math.floor(Math.random()*baseTypes.length)];
+    let annotation = 0;
+    if(baseType==="Tier 1") annotation = Math.floor(Math.random()*180)+1;
+    else if(baseType==="Tier 2") annotation = Math.floor(Math.random()*200)+1;
+    else annotation = Math.floor(Math.random()*81)+20;
+    questions.push({baseType, annotation});
+  }
+}
+
+// ==== INICIAR QUIZ ====
+function startQuiz(){
+  generateQuestions();
+  currentQuestion=0;
+  userResponses=[];
+  isPaused=false;
+  showQuestion();
+}
+
+// ==== PAUSE/PLAY ====
+function togglePause(){
+  if(!timer) return;
+  const t = TEXTS[lang];
+  if(isPaused){
+    timer = setInterval(countDown, 1000);
+    isPaused=false;
+    const notice=document.getElementById("paused-notice");
+    if(notice) notice.remove();
+  }else{
+    clearInterval(timer);
+    isPaused=true;
+    const app=document.getElementById("app");
+    const notice=document.createElement("div");
+    notice.id="paused-notice";
+    notice.className="paused-notice";
+    notice.innerText = t.pausedNotice;
+    app.appendChild(notice);
+  }
+}
+
+// ==== TIMER ====
+function countDown(){
+  if(!isPaused){
+    timeLeft--;
+    document.getElementById("time").textContent = timeLeft;
+    if(timeLeft<=0) handleSubmit(true);
+  }
+}
+
+// ==== SHOW QUESTION ====
+function showQuestion(){
+  clearInterval(timer);
+  timeLeft=30;
+  const t = TEXTS[lang];
+  let q=questions[currentQuestion];
+  let html=`<h2>${t.title}</h2>`;
+  let progressPercent = (currentQuestion/MAX_QUESTIONS)*100;
+  html += `<div class="progress-container"><div class="progress-bar" style="width:${progressPercent}%"></div></div>`;
+  html += `<div class="timer">⏱️ <span id="time">30</span>s</div>`;
+  html += `<img class="question-img" src="${questionImage}" alt="Score image">`;
+  if(currentQuestion===0) html += `<p><b>${t.initialScore}:</b> ${initialScore} points</p>`;
+  html += `<p>${t.questionText} <b>${q.annotation}</b> ${t.pointsIn} <b>${q.baseType}</b>.</p>`;
+  html += `<p>${t.howMany}</p>`;
+  html += `<input type="number" id="answer" placeholder="Your answer">`;
+  html += `
+    <div class="button-group">
+      <button onclick="handleSubmit()">${t.submit}</button>
+      <button onclick="togglePause()">${t.pause}</button>
+    </div>
+  `;
+  html += `<div id="user-input-history" class="user-input-history"></div>`;
+  html += `<div id="next-button-container" style="margin-top:10px;"></div>`;
+  html += `<div class="legal">
+    AtitedTools isn’t endorsed by Nintendo and doesn’t reflect the views or opinions of Nintendo or anyone officially involved in producing or managing Pokémon Unite. Pokémon Unite and Pokémon are trademarks or registered trademarks of Nintendo.
+  </div>`;
+  document.getElementById("app").innerHTML=html;
+  timer = setInterval(countDown, 1000);
+}
+
+// ==== SUBMIT ====
+function handleSubmit(timeout=false){
+  if(isPaused) return;
+  clearInterval(timer);
+  const t = TEXTS[lang];
+  let input = document.getElementById("answer");
+  let user = timeout ? 0 : Number(input.value || 0);
+
+  if(userResponses.length < currentQuestion + 1){
+    userResponses.push(user);
+  } else {
+    userResponses[currentQuestion] = user;
+  }
+
+  let accumulated = initialScore;
+  for(let i=0; i<=currentQuestion; i++){
+    accumulated += questions[i].annotation;
+  }
+
+  let historyHtml = "";
+  for(let i=0; i<=currentQuestion; i++){
+    let userInput = userResponses[i] || 0;
+    historyHtml += `Question ${i+1}: ${userInput} points<br>`;
+  }
+  historyHtml += `<b>${t.accumulated}:</b> ${accumulated} points`;
+
+  document.getElementById("user-input-history").innerHTML = historyHtml;
+  document.getElementById("next-button-container").innerHTML = `<button onclick="nextQuestion()">${t.next}</button>`;
+}
+
+// ==== NEXT QUESTION ====
+function nextQuestion(){
+  if(isPaused) return;
+  currentQuestion++;
+  if(currentQuestion>=MAX_QUESTIONS) showResults();
+  else showQuestion();
+}
+
+// ==== RESULTS ====
+function showResults(){
+  clearInterval(timer);
+  const t = TEXTS[lang];
+  let html=`<h2>${t.finalResults}</h2>`;
+  let realTotal=questions.reduce((sum,q)=>sum+q.annotation,initialScore);
+  html += `<p><b>${t.realScore}:</b> ${realTotal}</p>`;
+  html += `<h3>${t.breakdown}</h3>`;
+  let realAccum=initialScore;
+  for(let i=0;i<MAX_QUESTIONS;i++){
+    let q=questions[i];
+    realAccum += q.annotation;
+    let user=userResponses[i]||0;
+    html += `<p><b>Question ${i+1}:</b> ${t.questionText} <b>${q.annotation}</b> ${t.pointsIn} <b>${q.baseType}</b>.<br>`;
+    html += `Real accumulated total: ${realAccum}<br>`;
+    html += `Your total input: ${user}<br>`;
+    if(user===realAccum) html += `<span style="color:#4ade80;">${t.correct}</span>`;
+    else {
+      let error=user-realAccum;
+      let message = error>0 ? t.incorrectAbove : t.incorrectBelow;
+      html += `<span style="color:#f87171;">${message} ${Math.abs(error)} points</span>`;
+    }
+    html += `</p>`;
+  }
+  html += `<button onclick="showLanguageSelection()">${t.restart}</button>`;
+  html += `<div class="legal">
+    AtitedTools isn’t endorsed by Nintendo and doesn’t reflect the views or opinions of Nintendo or anyone officially involved in producing or managing Pokémon Unite. Pokémon Unite and Pokémon are trademarks or registered trademarks of Nintendo.
+  </div>`;
+  document.getElementById("app").innerHTML=html;
+}
+
+// ==== INICIALIZAR ====
+showLanguageSelection();
+</script>
+</body>
+</html>
